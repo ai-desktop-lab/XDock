@@ -6,7 +6,7 @@
 #include <QScreen>
 #include <QStandardPaths>
 #include <QWindow>
-#include <QNativeInterface>
+#include <qnativeinterface.h>
 #ifdef XDOCK_X11
 #include <xcb/xcb.h>
 #include <cstdlib>
