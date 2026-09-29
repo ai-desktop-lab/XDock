@@ -72,10 +72,11 @@ void PlatformAdapter::configureDockWindow(QWindow *window)
 #ifdef XDOCK_X11
     if (!window || QGuiApplication::platformName() != "xcb") return;
     auto *x11Application = qGuiApp->nativeInterface<QNativeInterface::QX11Application>();
-    auto *x11Window = window->nativeInterface<QNativeInterface::QX11Window>();
-    if (!x11Application || !x11Window) return;
+    if (!x11Application) return;
     auto *connection = x11Application->connection();
-    const auto windowId = x11Window->handle();
+    // Qt exposes QX11Application publicly, but not a QX11Window native
+    // interface. winId() is the portable Qt API for the native X11 Window.
+    const auto windowId = static_cast<xcb_window_t>(window->winId());
     if (!connection || !windowId) return;
 
     const auto windowType = internAtom(connection, "_NET_WM_WINDOW_TYPE");
@@ -105,8 +106,11 @@ QString PlatformAdapter::attach(QWindow *window, int reservedHeight, bool layerS
 #ifdef XDOCK_LAYER_SHELL
     if (platform.startsWith("wayland") && layerShell) {
         auto *surface = LayerShellQt::Window::get(window);
-        surface->setAnchors(LayerShellQt::Window::AnchorBottom
-                            | LayerShellQt::Window::AnchorLeft | LayerShellQt::Window::AnchorRight);
+        LayerShellQt::Window::Anchors anchors;
+        anchors.setFlag(LayerShellQt::Window::AnchorBottom);
+        anchors.setFlag(LayerShellQt::Window::AnchorLeft);
+        anchors.setFlag(LayerShellQt::Window::AnchorRight);
+        surface->setAnchors(anchors);
         surface->setLayer(LayerShellQt::Window::LayerTop);
         surface->setExclusiveZone(reservedHeight);
         surface->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);
