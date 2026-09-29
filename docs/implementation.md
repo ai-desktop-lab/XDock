@@ -34,7 +34,7 @@ GTK integration is through the Qt platform theme installed by the distribution (
 | Linux X11 / ICEWM | EWMH Dock type, above state and partial strut reservation | Source implemented; ICEWM runtime validation pending |
 | macOS / Windows | Portable UI, application launch adapters and platform status boundary | macOS launches installed apps by Bundle ID via `open`; the Dock uses a native status-level window that remains visible when another app activates; Windows resolves common executables |
 
-Layer-shell integration follows the [KDE LayerShellQt API](https://github.com/KDE/layer-shell-qt). XDock requires a compositor that supports this protocol; it is not a universal GNOME Wayland panel implementation.
+Layer-shell integration follows the [KDE LayerShellQt API](https://github.com/KDE/layer-shell-qt). XDock requires a compositor that supports this protocol; it is not a universal GNOME Wayland panel implementation. The X11/EWMH path remains the supported fallback for ICEWM and for Xvfb-backed headless sessions.
 
 Running-window enumeration/switching, StatusNotifierItem hosting, system volume/input/user controls, pin reordering, autohide, live GTK theme testing and mixed-DPI multi-monitor validation remain outside this visual implementation. Pinned app addition/removal and persistence are implemented. Tray clicks explicitly report that the service is not connected.
 
