@@ -23,7 +23,15 @@ ctest --test-dir build --output-on-failure
 ./build/xdock --preview
 ```
 
-Linux is Wayland-only. LayerShellQt is a build dependency and XDock uses layer-shell by default to anchor the Dock and reserve its screen edge. X11/EWMH is no longer supported. A Qt platform-theme plugin supplies GTK palette, font and icon-theme compatibility; XDock does not parse GTK CSS.
+On Linux, XDock supports both Wayland and X11. When LayerShellQt is available,
+the Wayland layer-shell backend anchors the Dock and reserves its screen edge;
+on ICEWM/X11, the XCB backend publishes EWMH dock type, above state and partial
+struts. A Qt platform-theme plugin supplies GTK palette, font and icon-theme
+compatibility; XDock does not parse GTK CSS.
+
+For headless VPS and containers, run the X11 backend inside Xvfb. It uses CPU
+rendering and does not require a GPU or compositor; X11VNC/noVNC can export the
+virtual display separately.
 
 On macOS, the preview executable is `./build/xdock.app/Contents/MacOS/xdock --preview`; normal mode launches installed apps through bundle identifiers and `/usr/bin/open`. Native window switching and Dock replacement integration remain separate adapter work.
 

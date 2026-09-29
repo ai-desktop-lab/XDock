@@ -8,13 +8,13 @@ jobs:
     container: fedora:44
     steps:
       - name: Install Qt and platform development packages
-        run: dnf install -y git cmake gcc-c++ qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtwayland-devel layer-shell-qt-devel
+        run: dnf install -y git cmake gcc-c++ pkgconf-pkg-config libxcb-devel qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtwayland-devel layer-shell-qt-devel xorg-x11-server-Xvfb
       - uses: actions/checkout@v4
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build --parallel 2
       - run: ctest --test-dir build --output-on-failure
       - name: Capture native QML surface
-        run: QT_QUICK_BACKEND=software ./build/xdock -platform offscreen --capture build/classic-linux.png
+        run: xvfb-run -a env QT_QUICK_BACKEND=software QT_QPA_PLATFORM=xcb ./build/xdock --capture build/classic-linux.png
       - uses: actions/upload-artifact@v4
         with:
           name: linux-native-render

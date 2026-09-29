@@ -23,7 +23,7 @@ ctest --test-dir build --output-on-failure
 ./build/xdock --preview
 ```
 
-Linux 仅支持 Wayland；构建依赖 LayerShellQt，并默认使用 layer-shell 锚定底部和保留边缘空间。X11/EWMH 不再支持。Qt 平台主题插件继续提供 GTK 调色板、字体和图标主题兼容，不直接读取 GTK CSS。
+Linux 支持 Wayland layer-shell 和 X11/EWMH Dock。Wayland 构建依赖 LayerShellQt，并使用 layer-shell 锚定底部和保留边缘空间；X11 适配面向 ICEWM 等遵循 EWMH 的窗口管理器，通过 `_NET_WM_WINDOW_TYPE_DOCK`、置顶状态和 `_NET_WM_STRUT_PARTIAL` 保留 Dock 区域。Qt 平台主题插件继续提供 GTK 调色板、字体和图标主题兼容，不直接读取 GTK CSS。
 
 macOS 本地预览命令为 `./build/xdock.app/Contents/MacOS/xdock --preview`；正常运行时，Dock 按钮会通过系统 `open -b` 启动已安装的应用。原生窗口管理、托盘服务和系统 Dock 面板替换仍待补齐。
 

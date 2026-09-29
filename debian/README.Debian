@@ -1,0 +1,4 @@
+XDock needs an active graphical session. Start it from the user's ICEWM
+startup file or another X11 session manager. The X11 backend is selected by
+Qt automatically through the xcb platform plugin; no Wayland session is
+required.
