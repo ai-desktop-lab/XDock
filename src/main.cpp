@@ -12,7 +12,6 @@
 #include <QDebug>
 
 int main(int argc, char *argv[]) {
-    // Select the Wayland shell integration before Qt creates its platform client.
     bool requestedLayerShell = false;
     bool requestedPreview = false;
     for (int i = 1; i < argc; ++i) {
@@ -23,6 +22,7 @@ int main(int argc, char *argv[]) {
 #ifdef Q_OS_LINUX
     requestedLayerShell = !requestedPreview;
 #endif
+    // Select the Wayland shell integration before Qt creates its platform client.
     PlatformAdapter::initialize(requestedLayerShell && !requestedPreview);
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
@@ -60,8 +60,9 @@ int main(int argc, char *argv[]) {
     }
     const bool preview = parser.isSet("preview") || parser.isSet("capture");
 #ifdef Q_OS_LINUX
-    if (!preview && !QGuiApplication::platformName().startsWith("wayland")) {
-        qCritical() << "XDock requires a Wayland session on Linux; X11 is not supported.";
+    const auto platformName = QGuiApplication::platformName();
+    if (!preview && platformName != "xcb" && !platformName.startsWith("wayland")) {
+        qCritical() << "XDock requires an X11 (xcb) or Wayland session on Linux.";
         return 3;
     }
 #endif
@@ -95,6 +96,7 @@ int main(int argc, char *argv[]) {
             // The expanded hover area is transparent; reserve only the
             // visible dock surface's original footprint on desktop panels.
             backend.setPlatformStatus(PlatformAdapter::attach(window, 78, layerShell));
+            if (window->isVisible()) PlatformAdapter::configureDockWindow(window);
         };
         QObject::connect(&backend, &DockBackend::dockEdgeChanged, window, position);
         QObject::connect(window, &QWindow::heightChanged, window, [position](int) { position(); });

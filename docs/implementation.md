@@ -15,7 +15,7 @@ The wallpaper and the clipped launcher labels above the reference's dock belong 
 - `qml/DockBar.qml`: independent visual component; semantic activation signals, keyboard control, overflow, accessible application names.
 - `src/SystemIcons.h`: host application / theme / standard platform icon provider.
 - `src/DockBackend.*`: persisted appearance, edge placement and mutable pinned-app model; preview never launches applications or saves preferences.
-- `src/platform/PlatformAdapter.*`: Linux `.desktop` discovery and `gio launch`, required Wayland layer-shell, and macOS Bundle ID launching. Fixed candidate IDs, no shell evaluation of `Exec` values. The Cocoa window adapter keeps the Dock visible across app activation, Spaces and fullscreen transitions.
+- `src/platform/PlatformAdapter.*`: Linux `.desktop` discovery and `gio launch`, Wayland layer-shell, X11/EWMH Dock properties, and macOS Bundle ID launching. Fixed candidate IDs, no shell evaluation of `Exec` values. The Cocoa window adapter keeps the Dock visible across app activation, Spaces and fullscreen transitions.
 - `src/main.cpp`: screen geometry, startup flags and native render capture.
 
 ## Theme contract
@@ -31,7 +31,7 @@ GTK integration is through the Qt platform theme installed by the distribution (
 | Native Qt UI | Classic/system, click, hover, keyboard, overflow, settings, capture | Built with Qt 6.11.2 on macOS; Qt Quick tests and actual native UI interaction checked |
 | Linux application launching | Desktop-entry candidates with GLib gio | Source implemented; Linux runtime verification pending |
 | Linux Wayland | Required LayerShellQt, bottom anchors and exclusive zone | Source implemented; compatible compositor validation pending |
-| Linux X11 | Not supported | Process exits with a clear Wayland requirement |
+| Linux X11 / ICEWM | EWMH Dock type, above state and partial strut reservation | Source implemented; ICEWM runtime validation pending |
 | macOS / Windows | Portable UI, application launch adapters and platform status boundary | macOS launches installed apps by Bundle ID via `open`; the Dock uses a native status-level window that remains visible when another app activates; Windows resolves common executables |
 
 Layer-shell integration follows the [KDE LayerShellQt API](https://github.com/KDE/layer-shell-qt). XDock requires a compositor that supports this protocol; it is not a universal GNOME Wayland panel implementation.

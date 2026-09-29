@@ -1,0 +1,25 @@
+Source: xdock
+Section: x11
+Priority: optional
+Maintainer: AI Workspace Lab <ai-workspace-lab@users.noreply.github.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ cmake (>= 3.21),
+ pkg-config,
+ qt6-base-dev,
+ qt6-declarative-dev,
+ qt6-tools-dev,
+ libxcb1-dev,
+ liblayershellqtinterface-dev
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/ai-workspace-lab/XDock
+
+Package: xdock
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: icewm | kde-plasma-desktop
+Description: lightweight X11/Wayland dock for AI Workspace
+ XDock is a compact Qt Quick dock. On X11 it advertises an EWMH dock
+ window and reserves its visible edge with _NET_WM_STRUT_PARTIAL;
+ on Wayland it uses the layer-shell protocol when available.

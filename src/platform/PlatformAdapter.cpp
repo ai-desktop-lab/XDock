@@ -6,9 +6,55 @@
 #include <QScreen>
 #include <QStandardPaths>
 #include <QWindow>
+#include <QNativeInterface>
+#ifdef XDOCK_X11
+#include <xcb/xcb.h>
+#include <cstdlib>
+#include <cstring>
+#endif
 #ifdef XDOCK_LAYER_SHELL
 #include <LayerShellQt/Shell>
 #include <LayerShellQt/Window>
+#endif
+
+#ifdef XDOCK_X11
+namespace {
+xcb_atom_t internAtom(xcb_connection_t *connection, const char *name)
+{
+    const auto cookie = xcb_intern_atom(connection, 0,
+                                        static_cast<uint16_t>(std::strlen(name)), name);
+    const auto *reply = xcb_intern_atom_reply(connection, cookie, nullptr);
+    if (!reply) return XCB_ATOM_NONE;
+    const auto value = reply->atom;
+    std::free(const_cast<xcb_intern_atom_reply_t *>(reply));
+    return value;
+}
+
+void setAtomProperty(xcb_connection_t *connection, xcb_window_t window,
+                     xcb_atom_t property, xcb_atom_t value)
+{
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, property,
+                        XCB_ATOM_ATOM, 32, 1, &value);
+}
+
+void setStrut(xcb_connection_t *connection, xcb_window_t window, const QRect &screen,
+              bool bottom, uint32_t reserved)
+{
+    const uint32_t values[] = {
+        0, 0, bottom ? 0U : reserved, bottom ? reserved : 0U,
+        0, 0, 0, 0,
+        static_cast<uint32_t>(qMax(0, screen.left())),
+        static_cast<uint32_t>(qMax(0, screen.right())),
+        static_cast<uint32_t>(qMax(0, screen.left())),
+        static_cast<uint32_t>(qMax(0, screen.right()))
+    };
+    const auto strut = internAtom(connection, "_NET_WM_STRUT_PARTIAL");
+    if (strut != XCB_ATOM_NONE) {
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window, strut,
+                            XCB_ATOM_CARDINAL, 32, 12, values);
+    }
+}
+}
 #endif
 
 void PlatformAdapter::initialize(bool layerShell)
@@ -23,7 +69,33 @@ void PlatformAdapter::initialize(bool layerShell)
 #ifndef Q_OS_MACOS
 void PlatformAdapter::configureDockWindow(QWindow *window)
 {
+#ifdef XDOCK_X11
+    if (!window || QGuiApplication::platformName() != "xcb") return;
+    auto *x11Application = qGuiApp->nativeInterface<QNativeInterface::QX11Application>();
+    auto *x11Window = window->nativeInterface<QNativeInterface::QX11Window>();
+    if (!x11Application || !x11Window) return;
+    auto *connection = x11Application->connection();
+    const auto windowId = x11Window->handle();
+    if (!connection || !windowId) return;
+
+    const auto windowType = internAtom(connection, "_NET_WM_WINDOW_TYPE");
+    const auto dockType = internAtom(connection, "_NET_WM_WINDOW_TYPE_DOCK");
+    const auto state = internAtom(connection, "_NET_WM_STATE");
+    const auto above = internAtom(connection, "_NET_WM_STATE_ABOVE");
+    if (windowType != XCB_ATOM_NONE && dockType != XCB_ATOM_NONE)
+        setAtomProperty(connection, windowId, windowType, dockType);
+    if (state != XCB_ATOM_NONE && above != XCB_ATOM_NONE)
+        setAtomProperty(connection, windowId, state, above);
+
+    const QRect screen = window->screen() ? window->screen()->geometry() : QRect();
+    const bool bottom = window->y() >= screen.center().y();
+    // Keep the reserved desktop area at the visible dock height. The QML
+    // hover area expands upward and must not resize maximized applications.
+    setStrut(connection, windowId, screen, bottom, 78);
+    xcb_flush(connection);
+#else
     Q_UNUSED(window);
+#endif
 }
 #endif
 
@@ -55,6 +127,10 @@ QString PlatformAdapter::attach(QWindow *window, int reservedHeight, bool layerS
     Q_UNUSED(reservedHeight);
     if (platform == "windows")
         return QStringLiteral("Windows：底部贴边窗口适配器");
+#endif
+#ifdef XDOCK_X11
+    if (platform == "xcb")
+        return QStringLiteral("X11 EWMH Dock（ICEWM）");
 #endif
     Q_UNUSED(window);
     Q_UNUSED(reservedHeight);
