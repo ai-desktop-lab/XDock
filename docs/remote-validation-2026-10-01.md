@@ -21,10 +21,16 @@
 
 原始旧程序备份：`~/.local/state/task-ai-desktop/backup-polish-20261001-145108/`。后续配置界面完善前的程序备份：`~/.local/state/task-ai-desktop/backup-polish-20261001-145408/`。配置界面已支持滚动查看驻留项、移动和移除，避免窄屏溢出后无法管理。部署截图：`~/.local/state/task-ai-desktop/deployed-menu.png`。
 
+### KDE 全屏按钮修复
+
+KWin 对 Tool 窗口不接受预期全屏切换，导致网格被压在紧凑菜单内。XLaunch 改为普通无边框窗口，模式切换后按完整 screen geometry 定位，并恢复 EWMH SKIP_TASKBAR / SKIP_PAGER。
+
+当前远程 :10.0 中，单击“全部应用”后 XLaunch 为 1352×848 +0+0、IsViewable，状态含 FULLSCREEN / FOCUSED / ABOVE / SKIP_TASKBAR / SKIP_PAGER；Esc 返回 520×560 +0+210。实际截图确认完整琥珀网格。截图：`~/.local/state/task-ai-desktop/deployed-fullscreen.png`；此轮替换前备份：`~/.local/state/task-ai-desktop/backup-polish-20261001-150218/`。
+
 SHA256：
 
 - xdock: `1f73192076d71c3c62475b9bbfcd4f38c392ab8c62c72cb857c917577a88e0ea`
-- xlaunch: `df632a7501aed48712b1979fc010cb443d78fe05eda2a4e736dc3d0fe2eb4554`
+- xlaunch: `84aefd6d9c3558f7b187edbb975b589df26559e250741c459e94586ecbf0e4d9`
 
 ## 范围
 
