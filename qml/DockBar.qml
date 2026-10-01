@@ -24,7 +24,16 @@ Item {
     readonly property real magnificationRadius: 170 * uiScale
     readonly property real maxMagnification: 2.05
     property var apps: []
-    readonly property int visibleCount: Math.max(0, Math.min(apps.length,
+    property bool taskbarMode: false
+    property var taskWindows: []
+    property int desktopCount: 1
+    property int currentDesktop: 0
+    signal windowActivated(var id)
+    signal windowMinimized(var id)
+    signal windowClosed(var id)
+    signal windowMaximized(var id)
+    signal desktopRequested(int index)
+    readonly property int visibleCount: Math.max(0, Math.min(apps.length, taskbarMode ? 4 : apps.length,
         Math.floor((width - trayWidth - 12 * uiScale
                     - (width < apps.length * slotWidth + trayWidth + 12 * uiScale ? 26 * uiScale : 0)) / slotWidth)))
     signal appActivated(string key, string name, string launchId)
@@ -92,7 +101,7 @@ Item {
     }
     SystemPalette { id: systemPalette }
     Timer {
-        interval: 1000; running: !dock.fixedClock; repeat: true
+        interval: 30000; running: !dock.fixedClock; repeat: true
         onTriggered: dock.clockText = Qt.formatTime(new Date(), "hh:mm")
     }
     Timer { id: pressedTimer; interval: 800; onTriggered: dock.selectedIndex = -1 }
@@ -220,6 +229,58 @@ Item {
         activeFocusOnTab: true
     }
 
+    ScrollView {
+        visible: dock.taskbarMode
+        x: applications.width + 8
+        width: Math.max(0, tray.x - x - 8)
+        height: 36
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 8
+        clip: true
+        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+        Row {
+            spacing: 4
+            Repeater {
+                model: dock.taskWindows
+                Button {
+                    id: taskButton
+                    required property var modelData
+                    width: 140; height: 30
+                    text: modelData.title
+                    highlighted: modelData.active
+                    opacity: modelData.minimized ? 0.65 : 1
+                    contentItem: Text {
+                        text: taskButton.text
+                        elide: Text.ElideRight
+                        verticalAlignment: Text.AlignVCenter
+                        color: taskButton.highlighted ? "#ffffff" : "#eee9de"
+                    }
+                    background: Rectangle {
+                        color: taskButton.highlighted ? "#466b85" : "#654943"
+                        border.color: taskButton.highlighted ? "#a9d7ed" : "#897568"
+                        radius: 3
+                    }
+                    onClicked: modelData.active ? dock.windowMinimized(modelData.id) : dock.windowActivated(modelData.id)
+                    ToolTip.visible: hovered
+                    ToolTip.text: modelData.title
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.RightButton
+                        onClicked: windowMenu.open()
+                    }
+                    Menu {
+                        id: windowMenu
+                        popupType: Popup.Window
+                        MenuItem { text: "切换 / 恢复"; onTriggered: dock.windowActivated(taskButton.modelData.id) }
+                        MenuItem { text: "最小化"; onTriggered: dock.windowMinimized(taskButton.modelData.id) }
+                        MenuItem { text: "最大化 / 还原"; onTriggered: dock.windowMaximized(taskButton.modelData.id) }
+                        MenuItem { text: "关闭窗口"; onTriggered: dock.windowClosed(taskButton.modelData.id) }
+                    }
+                }
+            }
+        }
+    }
+
     Row {
         id: tray
         anchors.right: parent.right; anchors.rightMargin: 12 * dock.uiScale
@@ -247,7 +308,7 @@ Item {
                 popupType: Qt.platform.os === "osx" ? Popup.Native : Popup.Window
                 y: -height
                 Repeater {
-                    model: dock.apps.length - dock.visibleCount
+                    model: Math.max(0, dock.apps.length - dock.visibleCount)
                     MenuItem {
                         required property int index
                         text: dock.apps[dock.visibleCount + index].name
@@ -256,38 +317,30 @@ Item {
                 }
             }
         }
-        Repeater {
-            model: [
-                {name: "通知", icon: "dialog-information", w: 19},
-                {name: "Dock 设置", icon: "preferences-system", w: 21},
-                {name: "输入法", icon: "input-keyboard", w: 20},
-                {name: "音量", icon: "audio-volume-high", w: 23},
-                {name: "用户", icon: "avatar-default", w: 18}
-            ]
-            delegate: AbstractButton {
-                required property var modelData
-                width: modelData.w * dock.uiScale; height: 24 * dock.uiScale
-                hoverEnabled: true
-                Accessible.name: modelData.name
-                contentItem: SystemIcon {
-                    iconName: modelData.icon
-                    symbolic: true
-                    tint: dock.systemTheme ? systemPalette.windowText : "#eee9de"
-                    opacity: parent.down ? 0.6 : 1
-                }
-                background: Rectangle {
-                    color: parent.hovered || parent.visualFocus ? "#30ffffff" : "transparent"
-                    radius: 3
-                }
-                onClicked: modelData.name === "Dock 设置" ? dock.preferencesRequested() : dock.statusRequested(modelData.name)
-                ToolTip {
-                    visible: parent.hovered
-                    delay: 550
-                    text: modelData.name
-                    popupType: Popup.Window
-                    y: -height - 6
+        ToolButton {
+            visible: dock.taskbarMode
+            text: "桌面 " + (dock.currentDesktop + 1)
+            onClicked: desktops.open()
+            Menu {
+                id: desktops
+                popupType: Popup.Window
+                y: -height
+                Repeater {
+                    model: dock.desktopCount
+                    MenuItem {
+                        required property int index
+                        text: "桌面 " + (index + 1)
+                        checkable: true
+                        checked: index === dock.currentDesktop
+                        onTriggered: dock.desktopRequested(index)
+                    }
                 }
             }
+        }
+        ToolButton {
+            text: "⚙"
+            Accessible.name: "Dock 设置"
+            onClicked: dock.preferencesRequested()
         }
         AbstractButton {
             width: 46 * dock.uiScale; height: 24 * dock.uiScale

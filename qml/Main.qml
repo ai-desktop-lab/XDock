@@ -23,11 +23,23 @@ ApplicationWindow {
         animationsEnabled: dockBackend.animationsEnabled
         apps: dockBackend.apps
         fixedClock: captureMode
-        onAppActivated: function(key, name, launchId) { dockBackend.launch(key, name, launchId) }
+        taskbarMode: !dockBackend.preview && Qt.platform.os === "linux"
+        taskWindows: taskbarBackend.windows
+        desktopCount: taskbarBackend.desktopCount
+        currentDesktop: taskbarBackend.currentDesktop
+        onWindowActivated: function(id) { taskbarBackend.activate(id) }
+        onWindowMinimized: function(id) { taskbarBackend.minimize(id) }
+        onWindowMaximized: function(id) { taskbarBackend.maximize(id) }
+        onWindowClosed: function(id) { taskbarBackend.closeWindow(id) }
+        onDesktopRequested: function(index) { taskbarBackend.switchDesktop(index) }
+        onAppActivated: function(key, name, launchId) {
+            if (key === "desktop" && dock.taskbarMode) taskbarBackend.showDesktop()
+            else dockBackend.launch(key, name, launchId)
+        }
         onRemoveRequested: function(index) { dockBackend.removePinnedApp(index) }
         onPreferencesRequested: settings.show()
         onStatusRequested: function(name) {
-            message.text = name + "\n系统托盘服务尚未接入。"
+            message.text = name
             notice.show()
         }
     }
