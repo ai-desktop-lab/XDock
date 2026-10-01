@@ -124,6 +124,10 @@ public:
                 {"system-software-install", QStyle::SP_DialogSaveButton},
                 {"preferences-system", QStyle::SP_FileDialogDetailedView},
                 {"audio-volume-high", QStyle::SP_MediaVolume},
+                {"audio-volume-muted", QStyle::SP_MediaVolumeMuted},
+                {"network-wired", QStyle::SP_DriveNetIcon},
+                {"network-wireless", QStyle::SP_DriveNetIcon},
+                {"network-offline", QStyle::SP_DriveNetIcon},
                 {"dialog-information", QStyle::SP_MessageBoxInformation},
                 {"input-keyboard", QStyle::SP_ComputerIcon},
                 {"avatar-default", QStyle::SP_DirHomeIcon}

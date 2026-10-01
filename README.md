@@ -60,3 +60,13 @@ Use the bottom strip as the reference: edge-aligned placement, compact colorful 
 - No DDE suite dependency. Desktop coexistence and window-control permissions require platform validation.
 
 Next: validate the Wayland layer-shell and GTK platform-theme integration on real Linux compositors, then implement running-window state and system tray services. The historical concept below remains a reference; the latest supplied strip is the visual source of truth for the implemented classic theme.
+
+## Calendar and host status
+
+The bottom-right clock shows time and date and opens a locale-aware monthly
+calendar. A collapsible panel provides network/default-route information,
+current-session audio, CPU/memory/load, home-filesystem space, uptime and
+optional battery status. Missing services remain unavailable. Network/audio
+are event-driven; host statistics sample every 5 seconds only while expanded,
+and the clock updates at minute boundaries. Narrow and top-edge layouts are
+supported. See [interaction and data boundaries](docs/status-calendar.md).

@@ -17,8 +17,15 @@ Homepage: https://github.com/ai-workspace-lab/XDock
 
 Package: xdock
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends},
+ qml6-module-qtquick,
+ qml6-module-qtquick-window,
+ qml6-module-qtquick-controls,
+ qml6-module-qtquick-templates,
+ qml6-module-qtquick-layouts,
+ qml6-module-qtqml-workerscript
 Recommends: icewm | kde-plasma-desktop
+Suggests: wireplumber | pulseaudio-utils, network-manager-gnome, pavucontrol, plasma-systemmonitor | gnome-system-monitor
 Description: lightweight X11/Wayland dock for AI Workspace
  XDock is a compact Qt Quick dock. On X11 it advertises an EWMH dock
  window and reserves its visible edge with _NET_WM_STRUT_PARTIAL;

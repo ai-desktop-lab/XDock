@@ -8,7 +8,7 @@ ApplicationWindow {
     width: previewWidth
     // Keep the original compact dock at rest. The transparent room expands
     // upward only while the fish-eye interaction needs it.
-    height: dock.magnificationActive ? 132 : 78
+    height: captureMode ? (captureHoverIndex >= 0 ? 132 : 78) : (dock.magnificationActive ? 132 : 78)
     Behavior on height {
         enabled: dockBackend.animationsEnabled && !captureMode
         NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
@@ -19,11 +19,14 @@ ApplicationWindow {
     DockBar {
         id: dock
         sessionBackend: sessionActions
+        statusBackend: systemStatusBackend
+        dockEdge: dockBackend.dockEdge
         anchors.fill: parent
         theme: dockBackend.theme
         animationsEnabled: dockBackend.animationsEnabled
         apps: dockBackend.apps
         fixedClock: captureMode
+        interactiveHover: !captureMode
         taskbarMode: !dockBackend.preview && Qt.platform.os === "linux"
         taskWindows: taskbarBackend.windows
         desktopCount: taskbarBackend.desktopCount

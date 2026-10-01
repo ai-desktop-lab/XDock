@@ -1,4 +1,5 @@
 #include "SessionActions.h"
+#include "SystemStatus.h"
 #include "DockBackend.h"
 #include "Taskbar.h"
 #include "SystemIcons.h"
@@ -96,13 +97,16 @@ int main(int argc, char *argv[]) {
     }
     if (!theme.isEmpty()) backend.setTheme(theme);
     SessionActions sessionActions(preview);
+    SystemStatus systemStatus(preview);
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("sessionActions", &sessionActions);
+    engine.rootContext()->setContextProperty("systemStatusBackend", &systemStatus);
     engine.addImageProvider("system", new SystemIcons);
     engine.rootContext()->setContextProperty("dockBackend", &backend);
     engine.rootContext()->setContextProperty("taskbarBackend", &taskbar);
     engine.rootContext()->setContextProperty("previewWidth", requestedWidth);
     engine.rootContext()->setContextProperty("captureMode", parser.isSet("capture"));
+    engine.rootContext()->setContextProperty("captureHoverIndex", hoverIndex);
     engine.load(QUrl("qrc:/qml/Main.qml"));
     if (engine.rootObjects().isEmpty()) return 1;
     auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
