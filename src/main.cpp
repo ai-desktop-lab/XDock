@@ -1,4 +1,5 @@
 #include "DockBackend.h"
+#include "Taskbar.h"
 #include "SystemIcons.h"
 #include "platform/PlatformAdapter.h"
 #include <QCommandLineParser>
@@ -67,11 +68,13 @@ int main(int argc, char *argv[]) {
     }
 #endif
     const bool layerShell = !preview && QGuiApplication::platformName().startsWith("wayland");
+    Taskbar taskbar;
     DockBackend backend(preview);
     if (!theme.isEmpty()) backend.setTheme(theme);
     QQmlApplicationEngine engine;
     engine.addImageProvider("system", new SystemIcons);
     engine.rootContext()->setContextProperty("dockBackend", &backend);
+    engine.rootContext()->setContextProperty("taskbarBackend", &taskbar);
     engine.rootContext()->setContextProperty("previewWidth", requestedWidth);
     engine.rootContext()->setContextProperty("captureMode", parser.isSet("capture"));
     engine.load(QUrl("qrc:/qml/Main.qml"));

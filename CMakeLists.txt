@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Concurrent Network Widgets)
 qt_standard_project_setup(REQUIRES 6.8)
 option(XDOCK_ENABLE_LAYER_SHELL "Enable the Wayland layer-shell backend" ON)
-qt_add_executable(xdock src/main.cpp src/SystemIcons.h src/DockBackend.cpp src/DockBackend.h
+qt_add_executable(xdock src/main.cpp src/Taskbar.cpp src/Taskbar.h src/SystemIcons.h src/DockBackend.cpp src/DockBackend.h
     src/platform/PlatformAdapter.cpp src/platform/PlatformAdapter.h)
 qt_add_resources(xdock dock_resources PREFIX "/" FILES
     qml/Main.qml qml/DockBar.qml qml/SystemIcon.qml)

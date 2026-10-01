@@ -55,7 +55,7 @@ DockBackend::DockBackend(bool preview, QObject *parent)
     : QObject(parent), m_preview(preview) {
     m_theme = preview ? "classic" : m_settings.value("appearance/theme", "classic").toString();
     m_dockEdge = preview ? "bottom" : m_settings.value("placement/edge", "bottom").toString();
-    m_animationsEnabled = preview || m_settings.value("appearance/animationsEnabled", true).toBool();
+    m_animationsEnabled = preview || m_settings.value("appearance/animationsEnabled", false).toBool();
     if (m_dockEdge != "bottom" && m_dockEdge != "top") m_dockEdge = "bottom";
     m_apps = preview ? defaultApps() : readApps(m_settings);
     if (!preview) startLaunchEventServer();
