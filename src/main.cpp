@@ -1,3 +1,4 @@
+#include "SessionActions.h"
 #include "DockBackend.h"
 #include "Taskbar.h"
 #include "SystemIcons.h"
@@ -94,7 +95,9 @@ int main(int argc, char *argv[]) {
         backend.updateWindows(taskbar.windows());
     }
     if (!theme.isEmpty()) backend.setTheme(theme);
+    SessionActions sessionActions(preview);
     QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("sessionActions", &sessionActions);
     engine.addImageProvider("system", new SystemIcons);
     engine.rootContext()->setContextProperty("dockBackend", &backend);
     engine.rootContext()->setContextProperty("taskbarBackend", &taskbar);
