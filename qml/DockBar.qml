@@ -5,6 +5,8 @@ Item {
     id: dock
     property var root: dock
     property var sessionBackend: null
+    property var statusBackend: null
+    property string dockEdge: "bottom"
     objectName: "dockBar"
     implicitWidth: 1204
     // Transparent room above the surface keeps enlarged icons from clipping.
@@ -12,6 +14,7 @@ Item {
     property string theme: "classic"
     property bool animationsEnabled: true
     property bool fixedClock: false
+    property bool interactiveHover: true
     property int focusedIndex: 0
     property int selectedIndex: -1
     property string clockText: fixedClock ? "10:38" : Qt.formatTime(new Date(), "hh:mm")
@@ -22,7 +25,7 @@ Item {
     readonly property real uiScale: Math.min(1, height / 78)
     readonly property real iconSize: 52 * uiScale
     readonly property real slotWidth: 72 * uiScale
-    readonly property real trayWidth: (198 + (sessionBackend ? 40 : 0)) * uiScale
+    readonly property real trayWidth: ((statusBackend ? (width >= 600 ? 284 : 170) : 198) + (sessionBackend ? 40 : 0)) * uiScale
     readonly property real magnificationRadius: 170 * uiScale
     readonly property real maxMagnification: 2.05
     property var apps: []
@@ -136,7 +139,7 @@ Item {
         background: Rectangle { implicitWidth:300; implicitHeight:40; color: dock.systemTheme ? systemPalette.window : "#513b27"; border.color: dock.systemTheme ? systemPalette.mid : "#756047"; radius:4 }
     }
     Timer {
-        interval: 30000; running: !dock.fixedClock; repeat: true
+        interval: 30000; running: !dock.fixedClock && !dock.statusBackend; repeat: true
         onTriggered: dock.clockText = Qt.formatTime(new Date(), "hh:mm")
     }
     Timer { id: pressedTimer; interval: 800; onTriggered: dock.selectedIndex = -1 }
@@ -278,6 +281,7 @@ Item {
         // MouseAreas keep their activation and context-menu behavior.
         MouseArea {
             id: magnificationTracker
+            enabled: dock.interactiveHover
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
@@ -315,7 +319,7 @@ Item {
         id: tray
         anchors.right: parent.right; anchors.rightMargin: 12 * dock.uiScale
         anchors.bottom: parent.bottom; anchors.bottomMargin: 4 * dock.uiScale
-        height: 24 * dock.uiScale
+        height: (dock.statusBackend ? 30 : 24) * dock.uiScale
         spacing: 7 * dock.uiScale
         ToolButton {
             palette.buttonText: dock.systemTheme ? systemPalette.buttonText : "#eee9de"
@@ -378,7 +382,7 @@ Item {
         }
         ToolButton {
             palette.buttonText: dock.systemTheme ? systemPalette.buttonText : "#eee9de"
-            visible: dock.taskbarMode
+            visible: dock.taskbarMode && (!dock.statusBackend || dock.width >= 800)
             text: "桌面 " + (dock.currentDesktop + 1)
             contentItem: Text {text:parent.text;color:dock.systemTheme?systemPalette.buttonText:"#eee9de";font.pixelSize:13;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}
             onClicked: desktops.open()
@@ -400,12 +404,28 @@ Item {
         }
         ToolButton {
             palette.buttonText: dock.systemTheme ? systemPalette.buttonText : "#eee9de"
+            visible: !dock.statusBackend
             text: "⚙"
             contentItem: Text {text:parent.text;color:dock.systemTheme?systemPalette.buttonText:"#eee9de";font.pixelSize:14;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}
             Accessible.name: "Dock 设置"
             onClicked: dock.preferencesRequested()
         }
+        StatusArea {
+            id: statusArea
+            objectName: "statusArea"
+            visible: !!dock.statusBackend
+            backend: dock.statusBackend
+            systemTheme: dock.systemTheme
+            compact: dock.width < 600
+            fixedClock: dock.fixedClock
+            topEdge: dock.dockEdge === "top"
+            width: implicitWidth * dock.uiScale
+            height: parent.height
+            onPreferencesRequested: dock.preferencesRequested()
+            onNotice: function(message) { dock.statusRequested(message) }
+        }
         AbstractButton {
+            visible: !dock.statusBackend
             width: 46 * dock.uiScale; height: 24 * dock.uiScale
             Accessible.name: "日期与时间"
             contentItem: Text {
