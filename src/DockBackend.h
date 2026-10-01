@@ -3,6 +3,7 @@
 #include <QSettings>
 #include <QHash>
 #include <QVariantList>
+#include <QUrl>
 class QLocalServer;
 class QLocalSocket;
 class DockBackend : public QObject {
@@ -12,6 +13,7 @@ class DockBackend : public QObject {
     Q_PROPERTY(QString dockEdge READ dockEdge WRITE setDockEdge NOTIFY dockEdgeChanged)
     Q_PROPERTY(bool animationsEnabled READ animationsEnabled WRITE setAnimationsEnabled NOTIFY animationsEnabledChanged)
     Q_PROPERTY(QVariantList apps READ apps NOTIFY appsChanged)
+    Q_PROPERTY(QVariantList pinnedApps READ pinnedApps NOTIFY appsChanged)
     Q_PROPERTY(QString platformStatus READ platformStatus NOTIFY platformStatusChanged)
 public:
     explicit DockBackend(bool preview, QObject *parent = nullptr);
@@ -20,6 +22,7 @@ public:
     QString dockEdge() const { return m_dockEdge; }
     bool animationsEnabled() const { return m_animationsEnabled; }
     QVariantList apps() const;
+    QVariantList pinnedApps() const { return m_apps; }
     QString platformStatus() const { return m_platformStatus; }
     void setTheme(const QString &theme);
     void setDockEdge(const QString &edge);
@@ -29,6 +32,12 @@ public:
     Q_INVOKABLE bool addPinnedApp(const QString &name, const QString &launchId, const QString &iconName);
     Q_INVOKABLE bool removePinnedApp(int index);
     Q_INVOKABLE void resetPinnedApps();
+    Q_INVOKABLE bool pinApp(const QString &key);
+    Q_INVOKABLE bool unpinApp(const QString &key);
+    Q_INVOKABLE bool movePinnedApp(const QString &key, const QString &beforeKey);
+    Q_INVOKABLE bool pinDesktopFile(const QUrl &url);
+    void updateWindows(const QVariantList &windows);
+    bool ownsEndpoint() const { return m_launchEvents != nullptr; }
 signals:
     void themeChanged();
     void dockEdgeChanged();
@@ -43,6 +52,10 @@ private:
     bool m_animationsEnabled = true;
     QVariantList m_apps;
     QVariantList m_runningApps;
+    QVariantList m_windows;
+    QHash<QString, QVariantMap> m_desktopApps;
+    void reloadDesktopApps();
+    QVariantMap resolveWindow(const QVariantMap &window) const;
     QString m_platformStatus;
     QSettings m_settings;
     QLocalServer *m_launchEvents = nullptr;

@@ -1,14 +1,19 @@
 #include "Taskbar.h"
 #include <QTimer>
 #include <QGuiApplication>
+#include <QSocketNotifier>
+#include <QHash>
+#include <QFileInfo>
 #ifdef XDOCK_X11
 #include <xcb/xcb.h>
 #include <cstdlib>
 #include <cstring>
 namespace {
 xcb_atom_t atom(xcb_connection_t *c,const char *name) {
+ static QHash<QByteArray, xcb_atom_t> cache;
+ if(cache.contains(name)) return cache.value(name);
  auto *r=xcb_intern_atom_reply(c,xcb_intern_atom(c,0,std::strlen(name),name),nullptr);
- auto a=r?r->atom:0; std::free(r); return a;
+ auto a=r?r->atom:0; std::free(r); cache.insert(name,a); return a;
 }
 QByteArray readProperty(xcb_connection_t *c,quint32 w,const char *name) {
  auto *r=xcb_get_property_reply(c,xcb_get_property(c,0,w,atom(c,name),XCB_GET_PROPERTY_TYPE_ANY,0,65536),nullptr);
@@ -28,7 +33,28 @@ Taskbar::Taskbar(QObject *parent):QObject(parent) {
   else xcb_disconnect(c);
  }
 #endif
- if(m_connection) { auto *t=new QTimer(this); t->setInterval(1000); connect(t,&QTimer::timeout,this,&Taskbar::refresh); t->start(); refresh(); }
+#ifdef XDOCK_X11
+ if(m_connection) {
+  auto *c=static_cast<xcb_connection_t*>(m_connection);
+  quint32 mask=XCB_EVENT_MASK_PROPERTY_CHANGE|XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY;
+  xcb_change_window_attributes(c,m_root,XCB_CW_EVENT_MASK,&mask); xcb_flush(c);
+  auto *debounce=new QTimer(this); debounce->setSingleShot(true); debounce->setInterval(60);
+  connect(debounce,&QTimer::timeout,this,&Taskbar::refresh);
+  auto *notifier=new QSocketNotifier(xcb_get_file_descriptor(c),QSocketNotifier::Read,this);
+  connect(notifier,&QSocketNotifier::activated,this,[c,debounce] {
+   bool dirty=false;
+   while(auto *event=xcb_poll_for_event(c)) {
+    auto type=event->response_type&~0x80;
+    dirty |= type==XCB_PROPERTY_NOTIFY||type==XCB_DESTROY_NOTIFY||type==XCB_MAP_NOTIFY||type==XCB_UNMAP_NOTIFY;
+    std::free(event);
+   }
+   if(dirty&&!debounce->isActive())debounce->start();
+  });
+  // Recovery only: normal updates come from PropertyNotify and root events.
+  auto *fallback=new QTimer(this); fallback->setInterval(15000);
+  connect(fallback,&QTimer::timeout,this,&Taskbar::refresh); fallback->start(); refresh();
+ }
+#endif
 }
 Taskbar::~Taskbar() {
 #ifdef XDOCK_X11
@@ -45,12 +71,18 @@ void Taskbar::refresh() {
  QVariantList list;
  auto skip=atom(c,"_NET_WM_STATE_SKIP_TASKBAR"), hidden=atom(c,"_NET_WM_STATE_HIDDEN"), dock=atom(c,"_NET_WM_WINDOW_TYPE_DOCK"), desktop=atom(c,"_NET_WM_WINDOW_TYPE_DESKTOP");
  for(auto id:values(readProperty(c,m_root,"_NET_CLIENT_LIST"))) {
+  quint32 mask=XCB_EVENT_MASK_PROPERTY_CHANGE; xcb_change_window_attributes(c,id,XCB_CW_EVENT_MASK,&mask);
   auto states=values(readProperty(c,id,"_NET_WM_STATE")),types=values(readProperty(c,id,"_NET_WM_WINDOW_TYPE"));
   if(states.contains(skip)||types.contains(dock)||types.contains(desktop))continue;
   auto title=QString::fromUtf8(readProperty(c,id,"_NET_WM_NAME")); if(title.isEmpty())title=QString::fromLocal8Bit(readProperty(c,id,"WM_NAME")); if(title.isEmpty())continue;
   auto ds=values(readProperty(c,id,"_NET_WM_DESKTOP")); quint32 d=ds.isEmpty()?current:ds.first();
-  list.append(QVariantMap{{"id",id},{"title",title},{"active",id==m_active},{"minimized",states.contains(hidden)},{"desktop",d}});
+  auto classes=readProperty(c,id,"WM_CLASS").split('\0');
+  if(QString::fromUtf8(classes.value(1)).compare("XLaunch",Qt::CaseInsensitive)==0 || QString::fromUtf8(classes.value(1)).compare("XDock",Qt::CaseInsensitive)==0)continue;
+  auto pid=values(readProperty(c,id,"_NET_WM_PID"));
+  QString executable=pid.isEmpty()?QString():QFileInfo(QFileInfo(QString("/proc/%1/exe").arg(pid.first())).symLinkTarget()).fileName();
+  list.append(QVariantMap{{"wmClass",QString::fromUtf8(classes.value(1))},{"instance",QString::fromUtf8(classes.value(0))},{"appId",QString::fromUtf8(readProperty(c,id,"_GTK_APPLICATION_ID"))},{"executable",executable},{"id",id},{"title",title},{"active",id==m_active},{"minimized",states.contains(hidden)},{"desktop",d}});
  }
+ xcb_flush(c);
  if(list!=m_windows||count!=m_count||current!=m_current) { m_windows=list;m_count=count;m_current=current;emit changed(); }
 #endif
 }

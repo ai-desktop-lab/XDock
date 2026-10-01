@@ -36,14 +36,17 @@ ApplicationWindow {
             if (key === "desktop" && dock.taskbarMode) taskbarBackend.showDesktop()
             else dockBackend.launch(key, name, launchId)
         }
-        onRemoveRequested: function(index) { dockBackend.removePinnedApp(index) }
-        onPreferencesRequested: settings.show()
+        onRemoveRequested: function(key) { dockBackend.unpinApp(key) }
+        onPinRequested: function(key) { dockBackend.pinApp(key) }
+        onMoveRequested: function(key, beforeKey) { dockBackend.movePinnedApp(key, beforeKey) }
+        onFileDropped: function(path) { dockBackend.pinDesktopFile(path) }
+        onPreferencesRequested: { settings.showNormal(); settings.raise(); settings.requestActivate() }
         onStatusRequested: function(name) {
             message.text = name
             notice.show()
         }
     }
-    Shortcut { sequence: "Ctrl+,"; onActivated: settings.show() }
+    Shortcut { sequence: "Ctrl+,"; onActivated: { settings.showNormal(); settings.raise(); settings.requestActivate() } }
     Shortcut { sequence: "Ctrl+Q"; onActivated: Qt.quit() }
     Connections {
         target: dockBackend
@@ -70,8 +73,11 @@ ApplicationWindow {
         width: 460; height: 560
         transientParent: root
         color: palette.window
-        Column {
-            anchors.fill: parent; anchors.margins: 24; spacing: 14
+        ScrollView {
+         anchors.fill: parent; anchors.margins:24; clip:true
+         contentWidth: availableWidth
+         Column {
+            width: settings.width - 48; spacing:14
             Label { text: "外观"; font.bold: true; font.pixelSize: 18 }
             ComboBox {
                 width: parent.width
@@ -94,6 +100,23 @@ ApplicationWindow {
                 checked: dockBackend.animationsEnabled
                 onClicked: dockBackend.animationsEnabled = checked
             }
+            Label { text: "驻留应用"; font.bold:true }
+            ListView {
+                id: pinList
+                width:parent.width; height:Math.min(180,count*36); clip:true
+                model:dockBackend.pinnedApps
+                ScrollBar.vertical:ScrollBar{}
+                delegate:Row {
+                    required property var modelData
+                    required property int index
+                    width:pinList.width; height:36; spacing:4
+                    Label {width:parent.width-112;height:36;text:modelData.name;verticalAlignment:Text.AlignVCenter;elide:Text.ElideRight}
+                    ToolButton {width:32;height:32;text:"↑";enabled:index>0;Accessible.name:"向左移动";onClicked:dockBackend.movePinnedApp(modelData.key,dockBackend.pinnedApps[index-1].key)}
+                    ToolButton {width:32;height:32;text:"↓";enabled:index<pinList.count-1;Accessible.name:"向右移动";onClicked:dockBackend.movePinnedApp(modelData.key,index+2<pinList.count?dockBackend.pinnedApps[index+2].key:"")}
+                    ToolButton {width:32;height:32;text:"×";Accessible.name:"移除驻留";onClicked:dockBackend.unpinApp(modelData.key)}
+                }
+            }
+            Label {visible:pinList.count===0;text:"尚未驻留应用，可从菜单或运行图标右键添加。";wrapMode:Text.Wrap;width:parent.width}
             Label { text: "添加固定应用"; font.bold: true }
             TextField {
                 id: pinnedName
@@ -122,16 +145,17 @@ ApplicationWindow {
                         }
                     }
                 }
-                Button { text: "恢复默认"; onClicked: dockBackend.resetPinnedApps() }
+                Button { text: "清空驻留"; onClicked: dockBackend.resetPinnedApps() }
             }
             Label {
                 width: parent.width
                 wrapMode: Text.Wrap
                 opacity: 0.65
-                text: "右键 Dock 图标可移除固定项；配置会在重启后保留。"
+                text: "右键应用选择驻留或移除；拖拽驻留图标排序，也可拖入 .desktop 文件。运行中的应用在退出后自动消失。"
             }
             Label { text: "Ctrl+, 设置    ·    Ctrl+Q 退出"; opacity: 0.65 }
             Button { text: "关闭"; onClicked: settings.close() }
+         }
         }
     }
 }

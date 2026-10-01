@@ -33,11 +33,17 @@ Item {
     signal windowClosed(var id)
     signal windowMaximized(var id)
     signal desktopRequested(int index)
-    readonly property int visibleCount: Math.max(0, Math.min(apps.length, taskbarMode ? 4 : apps.length,
+    readonly property int visibleCount: Math.max(0, Math.min(apps.length, apps.length,
         Math.floor((width - trayWidth - 12 * uiScale
                     - (width < apps.length * slotWidth + trayWidth + 12 * uiScale ? 26 * uiScale : 0)) / slotWidth)))
     signal appActivated(string key, string name, string launchId)
-    signal removeRequested(int index)
+    signal removeRequested(string key)
+    signal pinRequested(string key)
+    signal moveRequested(string key, string beforeKey)
+    signal fileDropped(url path)
+    property string draggingKey: ""
+    property real dragStartX: 0
+    property int dragTargetIndex: -1
     signal preferencesRequested()
     signal statusRequested(string name)
     property bool keyboardFocus: false
@@ -84,6 +90,7 @@ Item {
     }
     Keys.onPressed: function(event) {
         keyboardFocus = true
+        if (visibleCount === 0) return
         if (event.key === Qt.Key_Right) focusedIndex = (focusedIndex + 1) % visibleCount
         else if (event.key === Qt.Key_Left) focusedIndex = (focusedIndex + visibleCount - 1) % visibleCount
         else if (event.key === Qt.Key_Home) focusedIndex = 0
@@ -96,10 +103,36 @@ Item {
     function activate(index) {
         if (index < 0 || index >= apps.length) return
         selectedIndex = index
-        appActivated(apps[index].key, apps[index].name, apps[index].launchId || "")
+        var app = apps[index]
+        var windows = app.windows || []
+        if (windows.length === 1) {
+            if (windows[0].active) windowMinimized(windows[0].id)
+            else windowActivated(windows[0].id)
+        } else if (windows.length > 1) {
+            // Cycle a group instead of launching another process.
+            var next = 0
+            for (var i = 0; i < windows.length; ++i) if (windows[i].active) next = (i + 1) % windows.length
+            windowActivated(windows[next].id)
+        } else appActivated(app.key, app.name, app.launchId || "")
         pressedTimer.restart()
     }
     SystemPalette { id: systemPalette }
+    component DockMenuItem: MenuItem {
+        id: action
+        height: 32
+        implicitWidth: 300
+        contentItem: Text { text:action.text; font:action.font; color:!action.enabled ? "#b4a28d" : dock.systemTheme ? action.highlighted ? systemPalette.highlightedText : systemPalette.text : "#fff9eb"; elide:Text.ElideRight; verticalAlignment:Text.AlignVCenter; leftPadding:action.checkable?22:0 }
+        background: Rectangle { radius:3; color: action.highlighted ? dock.systemTheme ? systemPalette.highlight : "#796044" : "transparent" }
+    }
+    component DockMenu: Menu {
+        width: 300
+        palette.window: dock.systemTheme ? systemPalette.window : "#513b27"
+        palette.text: dock.systemTheme ? systemPalette.text : "#fff9eb"
+        palette.buttonText: dock.systemTheme ? systemPalette.buttonText : "#fff9eb"
+        palette.highlight: dock.systemTheme ? systemPalette.highlight : "#796044"
+        palette.highlightedText: "#fff9eb"
+        background: Rectangle { implicitWidth:300; implicitHeight:40; color: dock.systemTheme ? systemPalette.window : "#513b27"; border.color: dock.systemTheme ? systemPalette.mid : "#756047"; radius:4 }
+    }
     Timer {
         interval: 30000; running: !dock.fixedClock; repeat: true
         onTriggered: dock.clockText = Qt.formatTime(new Date(), "hh:mm")
@@ -129,7 +162,7 @@ Item {
             delegate: Item {
                 id: tile
                 required property int index
-                readonly property var app: dock.apps[index]
+                readonly property var app: dock.apps[index] || {}
                 readonly property real iconMagnification: dock.iconMagnification(index)
                 readonly property real baseX: 14 * dock.uiScale + index * dock.slotWidth
                 property bool labelArmed: false
@@ -146,7 +179,7 @@ Item {
                     width: dock.iconSize * tile.iconMagnification
                     height: width
                     y: parent.height - height
-                    opacity: mouse.pressed ? 0.78 : 1
+                    opacity: dock.draggingKey === tile.app.key ? 0.5 : mouse.pressed ? 0.78 : 1
                     Behavior on width { enabled: dock.animationsEnabled; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                     Behavior on height { enabled: dock.animationsEnabled; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                     Behavior on y { enabled: dock.animationsEnabled; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
@@ -160,8 +193,8 @@ Item {
                 Rectangle {
                     width: 25 * dock.uiScale; height: 2 * dock.uiScale
                     anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
-                    color: dock.systemTheme ? systemPalette.highlight : "#c2f3fb"
-                    visible: dock.selectedIndex === tile.index
+                    color: tile.app.active ? "#c2f3fb" : "#c7b28b"
+                    visible: (tile.app.windows || []).length > 0 || dock.selectedIndex === tile.index
                 }
                 MouseArea {
                     id: mouse
@@ -170,7 +203,23 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                     onEntered: tile.labelArmed = true
                     onExited: tile.labelArmed = false
+                    property bool moved: false
+                    onPressed: function(event) { dock.dragStartX = mapToItem(dock, event.x, event.y).x; moved = false }
+                    onPositionChanged: function(event) {
+                        if (pressed && (pressedButtons & Qt.LeftButton) && tile.app.pinned) {
+                            if (Math.abs(mapToItem(dock, event.x, event.y).x - dock.dragStartX) > 10) { moved = true; dock.draggingKey = tile.app.key; dock.dragTargetIndex = Math.max(2, Math.min(dock.apps.length, Math.floor((mapToItem(dock,event.x,event.y).x - 14*dock.uiScale)/dock.slotWidth) + (mapToItem(dock,event.x,event.y).x > dock.dragStartX ? 1 : 0))) }
+                        }
+                    }
+                    onReleased: function(event) {
+                        if (moved) {
+                            var target = dock.dragTargetIndex
+                            dock.moveRequested(tile.app.key, target >= dock.visibleCount || !dock.apps[target] || !dock.apps[target].pinned ? "" : dock.apps[target].key)
+                        }
+                        dock.draggingKey = ""
+                    }
+                    onCanceled: dock.draggingKey = ""
                     onClicked: function(event) {
+                        if (moved) return
                         dock.focusedIndex = tile.index
                         dock.keyboardFocus = false
                         tile.labelArmed = false
@@ -178,15 +227,35 @@ Item {
                         else dock.activate(tile.index)
                     }
                 }
-                Menu {
+                DockMenu {
                     id: appMenu
                     popupType: Qt.platform.os === "osx" ? Popup.Native : Popup.Window
-                    MenuItem {
-                        text: "移除固定"
-                        visible: !tile.app.transient
-                        onTriggered: dock.removeRequested(tile.index)
+                    DockMenuItem {
+                        text: tile.app.pinned ? "从 Dock 移除驻留" : "在 Dock 中驻留"
+                        visible: !tile.app.utility
+                        height: tile.app.utility ? 0 : 32
+                        enabled: !!tile.app.launchId
+                        onTriggered: tile.app.pinned ? dock.removeRequested(tile.app.key) : dock.pinRequested(tile.app.key)
                     }
-                    MenuItem {
+                    DockMenuItem {
+                        text: "打开新窗口"
+                        visible: !tile.app.utility && !!tile.app.launchId
+                        height: !tile.app.utility && !!tile.app.launchId ? 32 : 0
+                        onTriggered: dock.appActivated(tile.app.key, tile.app.name, tile.app.launchId)
+                    }
+                    MenuSeparator { visible: (tile.app.windows || []).length > 0; height:(tile.app.windows || []).length > 0 ? 8 : 0 }
+                    Repeater {
+                        model: tile.app.windows || []
+                        DockMenuItem {
+                            required property var modelData
+                            text: (modelData.active ? "● " : "") + modelData.title
+                            onTriggered: dock.windowActivated(modelData.id)
+                        }
+                    }
+                    DockMenuItem { text: "最小化窗口"; visible: (tile.app.windows || []).length > 0; height:(tile.app.windows || []).length > 0 ? 32 : 0; onTriggered: { for (var w of tile.app.windows) dock.windowMinimized(w.id) } }
+                    DockMenuItem { text: "最大化 / 还原"; visible: (tile.app.windows || []).length === 1; height:(tile.app.windows || []).length === 1 ? 32 : 0; onTriggered: dock.windowMaximized(tile.app.windows[0].id) }
+                    DockMenuItem { text: "关闭窗口"; visible: (tile.app.windows || []).length > 0; height:(tile.app.windows || []).length > 0 ? 32 : 0; onTriggered: { for (var w of tile.app.windows) dock.windowClosed(w.id) } }
+                    DockMenuItem {
                         text: "Dock 设置"
                         onTriggered: dock.preferencesRequested()
                     }
@@ -229,56 +298,15 @@ Item {
         activeFocusOnTab: true
     }
 
-    ScrollView {
-        visible: dock.taskbarMode
-        x: applications.width + 8
-        width: Math.max(0, tray.x - x - 8)
-        height: 36
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 8
-        clip: true
-        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
-        Row {
-            spacing: 4
-            Repeater {
-                model: dock.taskWindows
-                Button {
-                    id: taskButton
-                    required property var modelData
-                    width: 140; height: 30
-                    text: modelData.title
-                    highlighted: modelData.active
-                    opacity: modelData.minimized ? 0.65 : 1
-                    contentItem: Text {
-                        text: taskButton.text
-                        elide: Text.ElideRight
-                        verticalAlignment: Text.AlignVCenter
-                        color: taskButton.highlighted ? "#ffffff" : "#eee9de"
-                    }
-                    background: Rectangle {
-                        color: taskButton.highlighted ? "#466b85" : "#654943"
-                        border.color: taskButton.highlighted ? "#a9d7ed" : "#897568"
-                        radius: 3
-                    }
-                    onClicked: modelData.active ? dock.windowMinimized(modelData.id) : dock.windowActivated(modelData.id)
-                    ToolTip.visible: hovered
-                    ToolTip.text: modelData.title
-                    MouseArea {
-                        anchors.fill: parent
-                        acceptedButtons: Qt.RightButton
-                        onClicked: windowMenu.open()
-                    }
-                    Menu {
-                        id: windowMenu
-                        popupType: Popup.Window
-                        MenuItem { text: "切换 / 恢复"; onTriggered: dock.windowActivated(taskButton.modelData.id) }
-                        MenuItem { text: "最小化"; onTriggered: dock.windowMinimized(taskButton.modelData.id) }
-                        MenuItem { text: "最大化 / 还原"; onTriggered: dock.windowMaximized(taskButton.modelData.id) }
-                        MenuItem { text: "关闭窗口"; onTriggered: dock.windowClosed(taskButton.modelData.id) }
-                    }
-                }
-            }
-        }
+    DropArea {
+        anchors.fill: parent
+        onEntered: function(drag) { drag.accepted = drag.hasUrls }
+        onDropped: function(drop) { for (var path of drop.urls) dock.fileDropped(path) }
+    }
+    Rectangle {
+        visible: dock.draggingKey.length > 0
+        x: 10*dock.uiScale + dock.dragTargetIndex*dock.slotWidth; anchors.bottom: parent.bottom
+        width:2; height:60*dock.uiScale; color: "#c7b28b"
     }
 
     Row {
@@ -288,6 +316,7 @@ Item {
         height: 24 * dock.uiScale
         spacing: 7 * dock.uiScale
         ToolButton {
+            palette.buttonText: dock.systemTheme ? systemPalette.buttonText : "#eee9de"
             visible: dock.visibleCount < dock.apps.length
             width: 34 * dock.uiScale; height: parent.height
             text: "更多"
@@ -301,7 +330,7 @@ Item {
             background: Rectangle { color: "#30ffffff"; radius: 3 }
             Accessible.name: "更多应用"
             onClicked: overflow.open()
-            Menu {
+            DockMenu {
                 id: overflow
                 objectName: "overflowMenu"
                 focus: true
@@ -309,7 +338,7 @@ Item {
                 y: -height
                 Repeater {
                     model: Math.max(0, dock.apps.length - dock.visibleCount)
-                    MenuItem {
+                    DockMenuItem {
                         required property int index
                         text: dock.apps[dock.visibleCount + index].name
                         onTriggered: dock.activate(dock.visibleCount + index)
@@ -318,16 +347,18 @@ Item {
             }
         }
         ToolButton {
+            palette.buttonText: dock.systemTheme ? systemPalette.buttonText : "#eee9de"
             visible: dock.taskbarMode
             text: "桌面 " + (dock.currentDesktop + 1)
+            contentItem: Text {text:parent.text;color:dock.systemTheme?systemPalette.buttonText:"#eee9de";font.pixelSize:13;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}
             onClicked: desktops.open()
-            Menu {
+            DockMenu {
                 id: desktops
                 popupType: Popup.Window
                 y: -height
                 Repeater {
                     model: dock.desktopCount
-                    MenuItem {
+                    DockMenuItem {
                         required property int index
                         text: "桌面 " + (index + 1)
                         checkable: true
@@ -338,7 +369,9 @@ Item {
             }
         }
         ToolButton {
+            palette.buttonText: dock.systemTheme ? systemPalette.buttonText : "#eee9de"
             text: "⚙"
+            contentItem: Text {text:parent.text;color:dock.systemTheme?systemPalette.buttonText:"#eee9de";font.pixelSize:14;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}
             Accessible.name: "Dock 设置"
             onClicked: dock.preferencesRequested()
         }

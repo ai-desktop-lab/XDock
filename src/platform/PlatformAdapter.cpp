@@ -85,8 +85,10 @@ void PlatformAdapter::configureDockWindow(QWindow *window)
     const auto above = internAtom(connection, "_NET_WM_STATE_ABOVE");
     if (windowType != XCB_ATOM_NONE && dockType != XCB_ATOM_NONE)
         setAtomProperty(connection, windowId, windowType, dockType);
-    if (state != XCB_ATOM_NONE && above != XCB_ATOM_NONE)
-        setAtomProperty(connection, windowId, state, above);
+    if (state != XCB_ATOM_NONE && above != XCB_ATOM_NONE) {
+        const xcb_atom_t states[] = {above, internAtom(connection, "_NET_WM_STATE_SKIP_TASKBAR"), internAtom(connection, "_NET_WM_STATE_SKIP_PAGER")};
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, windowId, state, XCB_ATOM_ATOM, 32, 3, states);
+    }
 
     const QRect screen = window->screen() ? window->screen()->geometry() : QRect();
     const bool bottom = window->y() >= screen.center().y();
@@ -146,25 +148,16 @@ QString PlatformAdapter::attach(QWindow *window, int reservedHeight, bool layerS
 QString PlatformAdapter::launch(const QString &application, const QString &launchId)
 {
 #ifdef Q_OS_LINUX
-    // Fixed allowlist; never interpolate desktop Exec fields into a shell.
-    const QMap<QString, QStringList> ids = {
-        {"launcher", {"xlaunch", "dde-launcher"}},
-        {"desktop", {"dde-show-desktop"}},
-        {"files", {"dde-file-manager", "org.gnome.Nautilus", "org.kde.dolphin", "thunar"}},
-        {"browser", {"firefox", "org.mozilla.firefox", "chromium"}},
-        {"music", {"deepin-music", "org.gnome.Music", "rhythmbox"}},
-        {"video", {"deepin-movie", "vlc", "org.gnome.Totem"}},
-        {"store", {"deepin-app-store", "org.gnome.Software", "org.kde.discover"}},
-        {"games", {"deepin-game-center", "steam"}},
-        {"screenshot", {"deepin-screen-recorder", "org.kde.spectacle", "org.gnome.Screenshot"}},
-        {"terminal", {"deepin-terminal", "org.gnome.Terminal", "org.kde.konsole", "xfce4-terminal"}},
-        {"settings", {"dde-control-center", "org.gnome.Settings", "systemsettings"}}
-    };
+    if (application == "launcher") {
+        auto binary = QStandardPaths::findExecutable("xlaunch");
+        if (binary.isEmpty()) return QStringLiteral("未找到 XLaunch。");
+        return QProcess::startDetached(binary, {"--toggle"}) ? QString() : QStringLiteral("无法打开 XLaunch。");
+    }
     const QString gio = QStandardPaths::findExecutable("gio");
     if (gio.isEmpty()) return QStringLiteral("缺少 gio，请安装 GLib 工具后重试。");
-    const auto candidates = launchId.isEmpty() ? ids.value(application) : QStringList{launchId};
+    const auto candidates = QStringList{launchId};
     for (const auto &id : candidates) {
-        const auto path = QStandardPaths::locate(QStandardPaths::ApplicationsLocation, id + ".desktop");
+        const auto path = QFileInfo(id).isAbsolute() ? id : QStandardPaths::locate(QStandardPaths::ApplicationsLocation, id.endsWith(".desktop") ? id : id + ".desktop");
         if (path.isEmpty()) continue;
         // Wait for gio's short-lived launcher, not for the launched application.
         QProcess process;
