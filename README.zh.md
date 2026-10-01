@@ -35,11 +35,11 @@ macOS 本地预览命令为 `./build/xdock.app/Contents/MacOS/xdock --preview`�
 
 可用 `QT_QUICK_BACKEND=software ./build/xdock -platform offscreen --capture classic.png` 保存真实 QML 渲染，使用 `--width 480` 检查窄屏。通过 `cmake --install build --prefix ~/.local` 手动安装，不会替换现有面板。
 
-Dock 固定项由后端模型管理：可在设置中按桌面 ID、macOS Bundle ID 或 Windows 可执行文件添加，右键图标移除，顺序与自定义图标主题名称会持久保存。Linux 使用 `.desktop` 与 `gio` 启动应用，macOS 使用应用 Bundle ID 和系统 `open` 启动应用，Windows 预留常见可执行文件映射。托盘服务和运行窗口切换仍待补齐。
+Dock 固定项由后端模型管理：可在设置中按桌面 ID、macOS Bundle ID 或 Windows 可执行文件添加，右键图标移除，顺序与自定义图标主题名称会持久保存。Linux 使用 `.desktop` 与 `gio` 启动应用，macOS 使用应用 Bundle ID 和系统 `open` 启动应用，Windows 预留常见可执行文件映射。系统托盘服务仍待补齐；X11 窗口管理已接入。
 
-XLaunch 成功打开应用后会通过本机 IPC 通知正在运行的 XDock。未固定的应用会作为本次会话的临时运行项显示在 Dock 上，并沿用该应用的系统图标；重启 XDock 后临时项清空。
+X11 运行应用由真实窗口生成 APP logo，并按应用合并多窗口。右键驻留/移除、拖拽驻留图标排序；XLaunch 右键应用也可驻留。关闭最后一个窗口后，非驻留图标自动消失。默认没有硬编码的 APP 列表。
 
-设置中的“启用 Dock 动画”默认开启。关闭后会立即停用鱼眼放大、相邻图标位移与 Dock 高度过渡；此选项会在重启后保留。
+设置中的“启用 Dock 动画”默认关闭。关闭后会立即停用鱼眼放大、相邻图标位移与 Dock 高度过渡；此选项会在重启后保留。
 
 ## macOS 打包
 
@@ -59,12 +59,14 @@ XLaunch 成功打开应用后会通过本机 IPC 通知正在运行的 XDock。�
 
 视觉沿用原图底部的贴边布局、紧凑彩色图标、轻薄深色透明底栏，与琥珀色桌面搭配。截图中的全屏启动器属于 XLaunch。
 
-XDock 独立运行，不要求 XLaunch 或 Agent 服务；XLaunch 可作为可选固定入口。目标平台为 macOS 26+、GNOME 50、KDE Plasma 6.6、DDE 7.0、Xfce，均待验证。不依赖 DDE 全家桶。
+XDock 独立运行，不要求 XLaunch 或 Agent 服务；XLaunch 为菜单入口，需要独立安装。目标平台为 macOS 26+、GNOME 50、KDE Plasma 6.6、DDE 7.0、Xfce，均待验证。不依赖 DDE 全家桶。
 
-下一步：在真实 Linux Wayland 合成器验证 layer-shell 与 GTK 平台主题，再补齐运行窗口状态和托盘服务。下方琥珀色图保留为历史概念稿，本次实现以新上传的底栏截图为准。
+下一步：在真实 Linux Wayland 合成器验证 layer-shell 与 GTK 平台主题，再补齐 Wayland 运行窗口状态和托盘服务。下方琥珀色图保留为历史概念稿，本次实现以新上传的底栏截图为准。
 
-## X11 基础任务栏
+## X11 应用 Dock
 
-在 ICEWM/KWin 的 X11 会话中，底部固定应用旁显示真实窗口列表。单击窗口按钮切换/恢复，当前活动窗口再次单击最小化；右键提供恢复、最小化、最大化/还原和关闭。工作区菜单切换 EWMH 桌面，显示桌面按钮切换桌面状态。长窗口列表可水平滚动。时钟每 30 秒更新，动画默认关闭。
+运行任务栏统一使用 APP logo，不再另外排列窗口文字按钮。点击恢复/切换窗口，活动单窗口再次点击最小化；多个窗口合并到一个图标，右键列出窗口并提供驻留、移除、最小化、最大化/还原和关闭。工作区、显示桌面、时钟保留。
 
-窗口列表使用独立 XCB 连接每秒读取 EWMH，仅在状态变化时更新界面。Wayland 不提供这些 X11 窗口操作。网络、音量和系统托盘协议仍需后续集成；界面不显示这些占位按钮。
+XCB 窗口事件以 60 ms 合并更新，15 秒刷新作为恢复机制；默认关闭动画。菜单和显示桌面是会话入口，其他应用来自用户驻留配置和实际窗口。空驻留列表可持久保存。Qt 配置遵循 XDG_CONFIG_HOME，IPC 按显示会话隔离，避免本地与远程桌面串扰。
+
+[设计与交互规范](docs/remote-dock-design.md)。网络、音量和系统托盘协议仍待集成；Wayland 窗口枚举单独规划。

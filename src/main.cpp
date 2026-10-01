@@ -11,6 +11,11 @@
 #include <QTimer>
 #include <QImage>
 #include <QDebug>
+#include <QLockFile>
+#include <QStandardPaths>
+#include <QDir>
+#include <QRegularExpression>
+#include <memory>
 
 int main(int argc, char *argv[]) {
     bool requestedLayerShell = false;
@@ -23,6 +28,19 @@ int main(int argc, char *argv[]) {
 #ifdef Q_OS_LINUX
     requestedLayerShell = !requestedPreview;
 #endif
+    // Lock before constructing QApplication: duplicate launches need no GUI or portal connection.
+    std::unique_ptr<QLockFile> instanceLock;
+    if (!requestedPreview) {
+        QString session = qEnvironmentVariable("DISPLAY", qEnvironmentVariable("WAYLAND_DISPLAY", "default"));
+        if (!qEnvironmentVariable("DISPLAY").isEmpty()) session = session.section('.', 0, 0);
+        session.replace(QRegularExpression("[^a-zA-Z0-9_-]"), "_");
+        QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+        if (runtime.isEmpty()) runtime = QDir::tempPath() + "/xdock-" + QString::number(qHash(QDir::homePath()));
+        QDir().mkpath(runtime);
+        instanceLock = std::make_unique<QLockFile>(runtime + "/xdock-" + session + ".lock");
+        instanceLock->setStaleLockTime(0);
+        if (!instanceLock->tryLock(0)) return 0;
+    }
     // Select the Wayland shell integration before Qt creates its platform client.
     PlatformAdapter::initialize(requestedLayerShell && !requestedPreview);
     QApplication app(argc, argv);
@@ -70,6 +88,11 @@ int main(int argc, char *argv[]) {
     const bool layerShell = !preview && QGuiApplication::platformName().startsWith("wayland");
     Taskbar taskbar;
     DockBackend backend(preview);
+    if (!preview && !backend.ownsEndpoint()) return 0;
+    if (!preview && QGuiApplication::platformName() == "xcb") {
+        QObject::connect(&taskbar, &Taskbar::changed, &backend, [&] { backend.updateWindows(taskbar.windows()); });
+        backend.updateWindows(taskbar.windows());
+    }
     if (!theme.isEmpty()) backend.setTheme(theme);
     QQmlApplicationEngine engine;
     engine.addImageProvider("system", new SystemIcons);
@@ -109,6 +132,7 @@ int main(int argc, char *argv[]) {
     } else {
         backend.setPlatformStatus("独立视觉预览 · Linux 优先");
     }
+    if (!preview) PlatformAdapter::configureDockWindow(window);
     window->show();
     if (!preview) PlatformAdapter::configureDockWindow(window);
     if (parser.isSet("capture")) {
