@@ -3,6 +3,8 @@ import QtQuick.Controls
 
 Item {
     id: dock
+    property var root: dock
+    property var sessionBackend: null
     objectName: "dockBar"
     implicitWidth: 1204
     // Transparent room above the surface keeps enlarged icons from clipping.
@@ -20,7 +22,7 @@ Item {
     readonly property real uiScale: Math.min(1, height / 78)
     readonly property real iconSize: 52 * uiScale
     readonly property real slotWidth: 72 * uiScale
-    readonly property real trayWidth: 198 * uiScale
+    readonly property real trayWidth: (198 + (sessionBackend ? 40 : 0)) * uiScale
     readonly property real magnificationRadius: 170 * uiScale
     readonly property real maxMagnification: 2.05
     property var apps: []
@@ -347,6 +349,34 @@ Item {
             }
         }
         ToolButton {
+            objectName:"userMenuButton"
+            visible:!!dock.sessionBackend
+            width:30*dock.uiScale;height:parent.height
+            Accessible.name:"用户与会话："+(sessionBackend?sessionBackend.userName:"")
+            ToolTip.visible:hovered;ToolTip.text:sessionBackend?sessionBackend.displayName:"";ToolTip.delay:600
+            contentItem:Rectangle {
+                radius:height/2;color:dock.systemTheme?systemPalette.mid:"#796044"
+                Image {anchors.fill:parent;source:sessionBackend?sessionBackend.avatar:"";visible:source.toString().length>0;fillMode:Image.PreserveAspectCrop;sourceSize:Qt.size(32,32)}
+                Text {anchors.centerIn:parent;text:sessionBackend?sessionBackend.userName.slice(0,1).toUpperCase():"";visible:!sessionBackend||sessionBackend.avatar.toString().length===0;color:dock.systemTheme?systemPalette.windowText:"#fff9eb";font.pixelSize:13}
+            }
+            onClicked:userMenu.open()
+            DockMenu {
+                id:userMenu;objectName:"userSessionMenu";popupType:Popup.Window;y:-height
+                onAboutToShow:if(sessionBackend)sessionBackend.refresh()
+                DockMenuItem {text:sessionBackend?sessionBackend.displayName+" · 用户信息":"";onTriggered:profileDialog.open()}
+                MenuSeparator {}
+                Repeater {
+                    model:sessionBackend?sessionBackend.actions:[]
+                    DockMenuItem {
+                        required property var modelData
+                        text:modelData.text;enabled:modelData.enabled
+                        ToolTip.visible:hovered&&!enabled;ToolTip.text:modelData.reason;ToolTip.delay:450
+                        onTriggered:sessionBackend.request(modelData.key)
+                    }
+                }
+            }
+        }
+        ToolButton {
             palette.buttonText: dock.systemTheme ? systemPalette.buttonText : "#eee9de"
             visible: dock.taskbarMode
             text: "桌面 " + (dock.currentDesktop + 1)
@@ -389,5 +419,45 @@ Item {
             }
             onClicked: dock.statusRequested(Qt.formatDate(new Date(), "yyyy年M月d日 dddd"))
         }
+    }
+
+    Dialog {
+        id: sessionDialog
+        objectName: "sessionConfirmation"
+        property string actionKey: ""
+        property string detail: ""
+        width: Math.min(420, root.width - 24)
+        modal: true; popupType: Popup.Window
+        x:(root.width-width)/2;y:-height-24
+        title: "会话操作"
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        palette.window: dock.systemTheme?systemPalette.window:"#513b27"
+        palette.text: dock.systemTheme?systemPalette.windowText:"#fff9eb"
+        palette.windowText: dock.systemTheme?systemPalette.windowText:"#fff9eb"
+        palette.buttonText: dock.systemTheme?systemPalette.windowText:"#fff9eb"
+        palette.button: dock.systemTheme?systemPalette.button:"#604b35"
+        palette.highlight: dock.systemTheme?systemPalette.highlight:"#796044"
+        background: Rectangle {color:dock.systemTheme?systemPalette.window:"#513b27";border.color:dock.systemTheme?systemPalette.mid:"#756047";radius:6}
+        contentItem: Label {text:sessionDialog.detail;color:dock.systemTheme?systemPalette.windowText:"#fff9eb";wrapMode:Text.Wrap;font.pixelSize:14;lineHeight:1.3}
+        onOpened: {standardButton(Dialog.Ok).text=actionKey==="poweroff"?"关闭主机":actionKey==="reboot"?"重启主机":actionKey==="login"?"退出并重新登录":"注销";standardButton(Dialog.Cancel).text="取消";standardButton(Dialog.Cancel).forceActiveFocus()}
+        onAccepted: sessionBackend.confirm(actionKey)
+        onClosed: sessionBackend.cancel()
+    }
+    Dialog {
+        id: profileDialog
+        objectName: "userInformation"
+        width:Math.min(420,root.width-24);modal:true;popupType:Popup.Window
+        x:(root.width-width)/2;y:-height-24
+        title:"当前用户";standardButtons:Dialog.Close
+        palette.window:dock.systemTheme?systemPalette.window:"#513b27";palette.text:dock.systemTheme?systemPalette.windowText:"#fff9eb";palette.windowText:dock.systemTheme?systemPalette.windowText:"#fff9eb";palette.buttonText:dock.systemTheme?systemPalette.windowText:"#fff9eb";palette.button:dock.systemTheme?systemPalette.button:"#604b35"
+        background:Rectangle {color:dock.systemTheme?systemPalette.window:"#513b27";border.color:dock.systemTheme?systemPalette.mid:"#756047";radius:6}
+        contentItem:Label {text:sessionBackend?sessionBackend.displayName+"\n账号："+sessionBackend.userName+"\n"+sessionBackend.sessionLabel:"";color:dock.systemTheme?systemPalette.windowText:"#fff9eb";wrapMode:Text.Wrap;font.pixelSize:14;lineHeight:1.4}
+        onOpened:standardButton(Dialog.Close).text="关闭"
+    }
+    Connections {
+        target:sessionBackend
+        function onConfirmationRequested(key,title,detail){sessionDialog.actionKey=key;sessionDialog.title=title;sessionDialog.detail=detail;sessionDialog.open()}
+        function onFailure(text){dock.statusRequested(text)}
+
     }
 }

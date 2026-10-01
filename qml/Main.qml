@@ -18,6 +18,7 @@ ApplicationWindow {
     flags: dockBackend.preview ? Qt.Window : Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
     DockBar {
         id: dock
+        sessionBackend: sessionActions
         anchors.fill: parent
         theme: dockBackend.theme
         animationsEnabled: dockBackend.animationsEnabled
